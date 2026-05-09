@@ -1,0 +1,2038 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>机器视觉标定板图像生成助手</title>
+<style>
+  /* ============================================================
+     1. CSS Variables
+     ============================================================ */
+  :root {
+    --color-bg: #0a0e27;
+    --color-surface: #111827;
+    --color-surface-2: #1a1d35;
+    --color-border: #1f2544;
+    --color-primary: #00d4ff;
+    --color-secondary: #0ea5e9;
+    --color-accent: #3b82f6;
+    --color-success: #22c55e;
+    --color-warning: #f59e0b;
+    --color-danger: #ef4444;
+    --color-text: #e5e7eb;
+    --color-text-dim: #9ca3af;
+    --color-text-muted: #6b7280;
+    --radius-sm: 4px;
+    --radius: 8px;
+    --radius-lg: 12px;
+    --shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    --shadow-glow: 0 0 20px rgba(0, 212, 255, 0.15);
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing: 12px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --font-mono: ui-monospace, "SF Mono", Consolas, "Courier New", monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+      "Microsoft YaHei", sans-serif;
+  }
+
+  /* ============================================================
+     2. Reset
+     ============================================================ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--font-sans);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-size: 14px;
+    line-height: 1.5;
+    overflow: hidden;
+  }
+  button { font-family: inherit; cursor: pointer; border: none; }
+  input, select { font-family: inherit; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--color-accent); }
+
+  /* ============================================================
+     3. Layout
+     ============================================================ */
+  .app {
+    display: grid;
+    grid-template-rows: 56px 1fr 32px;
+    height: 100vh;
+  }
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 var(--spacing-lg);
+    background: linear-gradient(90deg, var(--color-surface) 0%, var(--color-surface-2) 100%);
+    border-bottom: 1px solid var(--color-border);
+    box-shadow: var(--shadow);
+    z-index: 10;
+  }
+  .header-left { display: flex; align-items: center; gap: var(--spacing-md); }
+  .logo {
+    width: 36px; height: 36px;
+    border-radius: var(--radius);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; color: #001018; font-size: 12px;
+    letter-spacing: 0.5px;
+    box-shadow: var(--shadow-glow);
+  }
+  .header-title { display: flex; flex-direction: column; }
+  .header-title .app-name { font-weight: 600; font-size: 15px; color: var(--color-text); }
+  .header-title .app-slogan { font-size: 11px; color: var(--color-text-dim); }
+  .header-right { display: flex; gap: var(--spacing-sm); align-items: center; }
+  .company { font-size: 12px; color: var(--color-text-dim); margin-right: var(--spacing); }
+
+  .main {
+    display: grid;
+    grid-template-columns: 320px 1fr 300px;
+    overflow: hidden;
+  }
+  .panel {
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+    overflow-y: auto;
+    padding: var(--spacing-md);
+  }
+  .panel-right {
+    border-right: none;
+    border-left: 1px solid var(--color-border);
+  }
+  .preview-area {
+    background: #0f1330;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+  .preview-toolbar {
+    display: flex;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--color-surface-2);
+    border-bottom: 1px solid var(--color-border);
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .preview-toolbar .spacer { flex: 1; }
+  .preview-canvas {
+    flex: 1;
+    overflow: auto;
+    padding: var(--spacing-lg);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    background:
+      linear-gradient(45deg, #0c1028 25%, transparent 25%),
+      linear-gradient(-45deg, #0c1028 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #0c1028 75%),
+      linear-gradient(-45deg, transparent 75%, #0c1028 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+  }
+  .svg-wrapper {
+    background: #fff;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    transition: transform 0.2s ease;
+    transform-origin: top center;
+  }
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 var(--spacing-lg);
+    font-size: 11px;
+    color: var(--color-text-muted);
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+  }
+
+  /* ============================================================
+     4. Brand Components
+     ============================================================ */
+  .brand-card {
+    background: linear-gradient(135deg, var(--color-surface-2), var(--color-surface));
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    text-align: center;
+  }
+  .brand-card .brand-logo {
+    width: 48px; height: 48px;
+    margin: 0 auto var(--spacing-sm);
+    border-radius: var(--radius);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; color: #001018;
+  }
+  .brand-card .brand-company { font-size: 13px; font-weight: 600; color: var(--color-text); }
+  .brand-card .brand-slogan { font-size: 11px; color: var(--color-text-dim); margin-top: 2px; }
+  .brand-qr {
+    width: 120px; height: 120px;
+    margin: var(--spacing) auto;
+    border-radius: var(--radius-sm);
+    background: #fff;
+    padding: 6px;
+    display: block;
+  }
+  .brand-info-line {
+    font-size: 11px;
+    color: var(--color-text-dim);
+    margin-top: 4px;
+  }
+  .brand-info-line strong { color: var(--color-text); margin-right: 4px; }
+
+  /* ============================================================
+     5. Tool Components
+     ============================================================ */
+  .section {
+    margin-bottom: var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface-2);
+    overflow: hidden;
+  }
+  .section-title {
+    padding: 10px var(--spacing);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-primary);
+    background: rgba(0, 212, 255, 0.06);
+    border-bottom: 1px solid var(--color-border);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .section-title::before {
+    content: ""; width: 3px; height: 12px;
+    background: var(--color-primary); border-radius: 2px;
+  }
+  .section-body {
+    padding: var(--spacing);
+    display: grid;
+    gap: var(--spacing-sm);
+  }
+  .field {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .field label {
+    font-size: 11px;
+    color: var(--color-text-dim);
+  }
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-sm);
+  }
+  .input, .select {
+    width: 100%;
+    padding: 7px 10px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .input:focus, .select:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.15);
+  }
+  .input[type="color"] { padding: 2px; height: 32px; cursor: pointer; }
+  .checkbox {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--color-text);
+    cursor: pointer;
+  }
+  .checkbox input { accent-color: var(--color-primary); }
+
+  .btn {
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 500;
+    background: var(--color-surface-2);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+    color: #001018;
+    border: none;
+    font-weight: 600;
+  }
+  .btn-primary:hover { filter: brightness(1.1); color: #001018; }
+  .btn-ghost { background: transparent; }
+  .btn-sm { padding: 5px 10px; font-size: 11px; }
+
+  .tab-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 4px;
+    background: var(--color-surface);
+    padding: 3px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+  }
+  .tab {
+    padding: 7px 8px;
+    font-size: 12px;
+    text-align: center;
+    border-radius: 3px;
+    color: var(--color-text-dim);
+    transition: all 0.15s;
+    cursor: pointer;
+    user-select: none;
+  }
+  .tab.active {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+    color: #001018;
+    font-weight: 600;
+  }
+
+  /* Info panel (right) */
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    padding: 4px 0;
+    border-bottom: 1px dashed var(--color-border);
+  }
+  .info-row:last-child { border-bottom: none; }
+  .info-row .k { color: var(--color-text-dim); }
+  .info-row .v { color: var(--color-text); font-family: var(--font-mono); }
+  .info-row .v.success { color: var(--color-success); }
+  .info-row .v.warning { color: var(--color-warning); }
+  .info-row .v.danger { color: var(--color-danger); }
+
+  .tip {
+    font-size: 11px;
+    color: var(--color-warning);
+    background: rgba(245, 158, 11, 0.08);
+    border-left: 3px solid var(--color-warning);
+    padding: 8px 10px;
+    border-radius: 3px;
+    line-height: 1.6;
+  }
+  .tip.info {
+    color: var(--color-primary);
+    background: rgba(0, 212, 255, 0.06);
+    border-left-color: var(--color-primary);
+  }
+
+  /* Toast */
+  .toast-container {
+    position: fixed;
+    top: 72px;
+    right: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 9999;
+  }
+  .toast {
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-left-width: 4px;
+    border-radius: var(--radius-sm);
+    padding: 10px 16px;
+    font-size: 13px;
+    color: var(--color-text);
+    box-shadow: var(--shadow);
+    min-width: 240px;
+    animation: slideIn 0.25s ease;
+  }
+  .toast.success { border-left-color: var(--color-success); }
+  .toast.warning { border-left-color: var(--color-warning); }
+  .toast.error { border-left-color: var(--color-danger); }
+  .toast.info { border-left-color: var(--color-primary); }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  /* ============================================================
+     7. Responsive
+     ============================================================ */
+  @media (max-width: 1280px) {
+    .main { grid-template-columns: 300px 1fr 260px; }
+  }
+  @media (max-width: 1023px) {
+    body { overflow: auto; }
+    .app { height: auto; grid-template-rows: auto auto auto; }
+    .main {
+      grid-template-columns: 1fr;
+      height: auto;
+    }
+    .panel, .panel-right {
+      border-right: none;
+      border-left: none;
+      border-bottom: 1px solid var(--color-border);
+      max-height: none;
+    }
+    .preview-canvas { min-height: 60vh; }
+  }
+  @media (max-width: 767px) {
+    .header { padding: 0 var(--spacing); }
+    .company { display: none; }
+    .header-title .app-slogan { display: none; }
+    .preview-toolbar { font-size: 11px; }
+    .preview-toolbar .btn { padding: 6px 8px; font-size: 11px; }
+  }
+
+  /* Print-only styles (PDF export via browser) */
+  @media print {
+    @page { margin: 0; }
+    body * { visibility: hidden; }
+    #printArea, #printArea * { visibility: visible; }
+    #printArea {
+      position: absolute;
+      left: 0; top: 0;
+      width: 100%;
+    }
+    #printArea svg {
+      display: block;
+    }
+    .no-print { display: none !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <!-- ================= Header ================= -->
+    <header class="header no-print">
+      <div class="header-left">
+        <div class="logo" data-brand="logoText">LOGO</div>
+        <div class="header-title">
+          <div class="app-name">机器视觉标定板图像生成助手</div>
+          <div class="app-slogan" data-brand="slogan">品牌标语</div>
+        </div>
+      </div>
+      <div class="header-right">
+        <span class="company" data-brand="companyName">公司名称</span>
+        <button class="btn btn-sm" id="btnImport">导入配置</button>
+        <button class="btn btn-sm" id="btnExportJSON">导出配置</button>
+        <button class="btn btn-sm btn-primary" id="btnPrint">打印 / PDF</button>
+      </div>
+    </header>
+
+    <!-- ================= Main ================= -->
+    <div class="main">
+      <!-- ============ Left Panel: Parameters ============ -->
+      <aside class="panel no-print">
+        <div class="section">
+          <div class="section-title">标定板类型</div>
+          <div class="section-body">
+            <div class="tab-group" id="tabGroup">
+              <div class="tab active" data-type="checker">棋盘格</div>
+              <div class="tab" data-type="dots">圆点阵列</div>
+              <div class="tab" data-type="checkerQR">二维码棋盘</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">尺寸与单位</div>
+          <div class="section-body">
+            <div class="field">
+              <label>单位</label>
+              <select class="select" id="inpUnit">
+                <option value="mm" selected>毫米 (mm)</option>
+                <option value="cm">厘米 (cm)</option>
+                <option value="inch">英寸 (inch)</option>
+              </select>
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label>列数 (X)</label>
+                <input class="input" type="number" id="inpCols" min="2" max="200" value="10" />
+              </div>
+              <div class="field">
+                <label>行数 (Y)</label>
+                <input class="input" type="number" id="inpRows" min="2" max="200" value="7" />
+              </div>
+            </div>
+
+            <!-- 棋盘格 / 二维码棋盘 专用 -->
+            <div id="groupChecker">
+              <div class="field-row">
+                <div class="field">
+                  <label>单格宽度</label>
+                  <input class="input" type="number" id="inpCellW" min="0.1" step="0.1" value="20" />
+                </div>
+                <div class="field">
+                  <label>单格高度</label>
+                  <input class="input" type="number" id="inpCellH" min="0.1" step="0.1" value="20" />
+                </div>
+              </div>
+              <label class="checkbox">
+                <input type="checkbox" id="inpSquareLock" checked />
+                锁定正方形格子
+              </label>
+            </div>
+
+            <!-- 圆点 专用 -->
+            <div id="groupDots" style="display:none;">
+              <div class="field-row">
+                <div class="field">
+                  <label>圆点直径</label>
+                  <input class="input" type="number" id="inpDotD" min="0.1" step="0.1" value="10" />
+                </div>
+                <div class="field">
+                  <label>排列方式</label>
+                  <select class="select" id="inpDotPattern">
+                    <option value="grid">正交</option>
+                    <option value="staggered">交错</option>
+                    <option value="asymmetric">非对称</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field-row">
+                <div class="field">
+                  <label>中心距 X</label>
+                  <input class="input" type="number" id="inpSpacingX" min="0.1" step="0.1" value="25" />
+                </div>
+                <div class="field">
+                  <label>中心距 Y</label>
+                  <input class="input" type="number" id="inpSpacingY" min="0.1" step="0.1" value="25" />
+                </div>
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label>水平边距</label>
+                <input class="input" type="number" id="inpMarginX" min="0" step="0.5" value="10" />
+              </div>
+              <div class="field">
+                <label>垂直边距</label>
+                <input class="input" type="number" id="inpMarginY" min="0" step="0.5" value="10" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">颜色与样式</div>
+          <div class="section-body">
+            <div class="field-row">
+              <div class="field">
+                <label>前景色</label>
+                <input class="input" type="color" id="inpFg" value="#000000" />
+              </div>
+              <div class="field">
+                <label>背景色</label>
+                <input class="input" type="color" id="inpBg" value="#ffffff" />
+              </div>
+            </div>
+            <label class="checkbox">
+              <input type="checkbox" id="inpShowBorder" />
+              显示外边框
+            </label>
+            <label class="checkbox">
+              <input type="checkbox" id="inpShowRuler" checked />
+              显示打印校准尺
+            </label>
+            <label class="checkbox">
+              <input type="checkbox" id="inpShowLabel" checked />
+              显示尺寸标注
+            </label>
+          </div>
+        </div>
+
+        <div class="section" id="sectionQR">
+          <div class="section-title">二维码配置</div>
+          <div class="section-body">
+            <label class="checkbox">
+              <input type="checkbox" id="inpQrEnabled" />
+              启用二维码 (仅“二维码棋盘”)
+            </label>
+            <div class="field">
+              <label>分布方式</label>
+              <select class="select" id="inpQrLayout">
+                <option value="corners">四角分布</option>
+                <option value="edges">边缘分布</option>
+                <option value="interval">网格间隔</option>
+                <option value="all">全部白格</option>
+              </select>
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label>间隔 (格)</label>
+                <input class="input" type="number" id="inpQrInterval" min="1" value="3" />
+              </div>
+              <div class="field">
+                <label>占用格数</label>
+                <select class="select" id="inpQrSize">
+                  <option value="1">1 × 1</option>
+                  <option value="2" selected>2 × 2</option>
+                  <option value="3">3 × 3</option>
+                </select>
+              </div>
+            </div>
+            <div class="field">
+              <label>内容格式</label>
+              <select class="select" id="inpQrFormat">
+                <option value="simple">简洁: X=3,Y=5</option>
+                <option value="dash">代码: CB-3-5</option>
+                <option value="industrial">工业: BOARD=...;X=3;Y=5</option>
+                <option value="json">JSON</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>容错等级</label>
+              <select class="select" id="inpQrEc">
+                <option value="L">L (7%)</option>
+                <option value="M" selected>M (15%)</option>
+                <option value="Q">Q (25%)</option>
+                <option value="H">H (30%)</option>
+              </select>
+            </div>
+            <label class="checkbox">
+              <input type="checkbox" id="inpQrShowCoord" />
+              在二维码下方显示坐标
+            </label>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">纸张与打印</div>
+          <div class="section-body">
+            <div class="field">
+              <label>纸张尺寸</label>
+              <select class="select" id="inpPaper">
+                <option value="A4">A4 (210 × 297 mm)</option>
+                <option value="A3">A3 (297 × 420 mm)</option>
+                <option value="A2">A2 (420 × 594 mm)</option>
+                <option value="Letter">Letter (216 × 279 mm)</option>
+                <option value="custom">自定义</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>方向</label>
+              <select class="select" id="inpOrientation">
+                <option value="auto" selected>自动</option>
+                <option value="portrait">纵向</option>
+                <option value="landscape">横向</option>
+              </select>
+            </div>
+            <div id="groupCustomPaper" style="display:none;">
+              <div class="field-row">
+                <div class="field">
+                  <label>纸张宽 (mm)</label>
+                  <input class="input" type="number" id="inpPaperW" value="210" />
+                </div>
+                <div class="field">
+                  <label>纸张高 (mm)</label>
+                  <input class="input" type="number" id="inpPaperH" value="297" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ============ Center: Preview ============ -->
+      <section class="preview-area">
+        <div class="preview-toolbar no-print">
+          <button class="btn btn-sm" id="btnZoomOut">−</button>
+          <span id="zoomLabel" style="font-family:var(--font-mono); font-size:12px; min-width:56px; text-align:center;">100%</span>
+          <button class="btn btn-sm" id="btnZoomIn">+</button>
+          <button class="btn btn-sm" id="btnZoomFit">适应</button>
+          <button class="btn btn-sm" id="btnZoomReal">1:1</button>
+          <div class="spacer"></div>
+          <button class="btn btn-sm" id="btnExportSVG">导出 SVG</button>
+          <button class="btn btn-sm" id="btnExportPNG">导出 PNG</button>
+          <button class="btn btn-sm btn-primary" id="btnExportPDF">导出 PDF</button>
+        </div>
+        <div class="preview-canvas" id="previewCanvas">
+          <div class="svg-wrapper" id="svgWrapper"></div>
+        </div>
+      </section>
+
+      <!-- ============ Right: Info & Brand ============ -->
+      <aside class="panel panel-right no-print">
+        <div class="section">
+          <div class="section-title">尺寸信息</div>
+          <div class="section-body" id="sizeInfo">
+            <div class="info-row"><span class="k">主体宽度</span><span class="v" id="infoBodyW">--</span></div>
+            <div class="info-row"><span class="k">主体高度</span><span class="v" id="infoBodyH">--</span></div>
+            <div class="info-row"><span class="k">总宽度</span><span class="v" id="infoTotalW">--</span></div>
+            <div class="info-row"><span class="k">总高度</span><span class="v" id="infoTotalH">--</span></div>
+            <div class="info-row"><span class="k">推荐纸张</span><span class="v" id="infoPaper">--</span></div>
+            <div class="info-row"><span class="k">适配状态</span><span class="v" id="infoFit">--</span></div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">打印提示</div>
+          <div class="section-body">
+            <div class="tip">
+              导出 PDF / 打印时，请务必选择 <strong>实际大小 / 100%</strong>，关闭“适合页面”与“缩放到纸张大小”，否则实际打印尺寸将不准确。
+            </div>
+            <div class="tip info">
+              打印完成后，请使用标尺测量校准尺与图案格子，确认尺寸一致。
+            </div>
+          </div>
+        </div>
+
+        <div class="brand-card">
+          <div class="brand-logo" data-brand="logoText">LOGO</div>
+          <div class="brand-company" data-brand="companyName">公司名称</div>
+          <div class="brand-slogan" data-brand="slogan">品牌标语</div>
+          <img class="brand-qr" data-brand="qrcode" alt="公众号二维码" />
+          <div class="brand-info-line"><strong>公众号</strong><span data-brand="officialAccount"></span></div>
+          <div class="brand-info-line"><strong>联系</strong><span data-brand="contact"></span></div>
+          <div class="brand-info-line"><strong>作者</strong><span data-brand="author"></span></div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- ================= Footer ================= -->
+    <footer class="footer no-print">
+      <span data-brand="copyright">© 2026 版权信息</span>
+      <span>v<span id="appVersion">1.0.0</span></span>
+    </footer>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Hidden print area (populated on demand) -->
+  <div id="printArea" style="display:none;"></div>
+
+  <!-- Hidden file input for JSON import -->
+  <input type="file" id="fileInput" accept="application/json" style="display:none;" />
+
+<script>
+/* ================================================================
+   QRCode minimal generator (MIT-like, inlined, no dependency)
+   Supports binary mode with ECC L/M/Q/H, auto version selection.
+   Based on qrcode-generator algorithm (condensed).
+   ================================================================ */
+var QRCodeLib = (function () {
+  // --- QRMath (GF(256)) ---
+  var QRMath = (function () {
+    var EXP_TABLE = new Array(256);
+    var LOG_TABLE = new Array(256);
+    for (var i = 0; i < 8; i++) EXP_TABLE[i] = 1 << i;
+    for (var i = 8; i < 256; i++) {
+      EXP_TABLE[i] = EXP_TABLE[i - 4] ^ EXP_TABLE[i - 5] ^ EXP_TABLE[i - 6] ^ EXP_TABLE[i - 8];
+    }
+    for (var i = 0; i < 255; i++) LOG_TABLE[EXP_TABLE[i]] = i;
+    return {
+      glog: function (n) { if (n < 1) throw new Error('glog(' + n + ')'); return LOG_TABLE[n]; },
+      gexp: function (n) { while (n < 0) n += 255; while (n >= 256) n -= 255; return EXP_TABLE[n]; }
+    };
+  })();
+
+  // --- Polynomial ---
+  function Polynomial(num, shift) {
+    if (num.length === undefined) throw new Error(num.length + '/' + shift);
+    var offset = 0;
+    while (offset < num.length && num[offset] === 0) offset++;
+    this.num = new Array(num.length - offset + shift);
+    for (var i = 0; i < num.length - offset; i++) this.num[i] = num[i + offset];
+  }
+  Polynomial.prototype = {
+    get: function (i) { return this.num[i]; },
+    getLength: function () { return this.num.length; },
+    multiply: function (e) {
+      var num = new Array(this.getLength() + e.getLength() - 1);
+      for (var i = 0; i < num.length; i++) num[i] = 0;
+      for (var i = 0; i < this.getLength(); i++)
+        for (var j = 0; j < e.getLength(); j++)
+          num[i + j] ^= QRMath.gexp(QRMath.glog(this.get(i)) + QRMath.glog(e.get(j)));
+      return new Polynomial(num, 0);
+    },
+    mod: function (e) {
+      if (this.getLength() - e.getLength() < 0) return this;
+      var ratio = QRMath.glog(this.get(0)) - QRMath.glog(e.get(0));
+      var num = new Array(this.getLength());
+      for (var i = 0; i < this.getLength(); i++) num[i] = this.get(i);
+      for (var i = 0; i < e.getLength(); i++)
+        num[i] ^= QRMath.gexp(QRMath.glog(e.get(i)) + ratio);
+      return new Polynomial(num, 0).mod(e);
+    }
+  };
+
+  // --- RSBlock table (subset: version 1..10 for all EC) ---
+  var RS_BLOCK_TABLE = [
+    // L, M, Q, H
+    [1, 26, 19], [1, 26, 16], [1, 26, 13], [1, 26, 9],
+    [1, 44, 34], [1, 44, 28], [1, 44, 22], [1, 44, 16],
+    [1, 70, 55], [1, 70, 44], [2, 35, 17], [2, 35, 13],
+    [1, 100, 80], [2, 50, 32], [2, 50, 24], [4, 25, 9],
+    [1, 134, 108], [2, 67, 43], [2, 33, 15, 2, 34, 16], [2, 33, 11, 2, 34, 12],
+    [2, 86, 68], [4, 43, 27], [4, 43, 19], [4, 43, 15],
+    [2, 98, 78], [4, 49, 31], [2, 32, 14, 4, 33, 15], [4, 39, 13, 1, 40, 14],
+    [2, 121, 97], [2, 60, 38, 2, 61, 39], [4, 40, 18, 2, 41, 19], [4, 40, 14, 2, 41, 15],
+    [2, 146, 116], [3, 58, 36, 2, 59, 37], [4, 36, 16, 4, 37, 17], [4, 36, 12, 4, 37, 13],
+    [2, 86, 68, 2, 87, 69], [4, 69, 43, 1, 70, 44], [6, 43, 19, 2, 44, 20], [6, 43, 15, 2, 44, 16]
+  ];
+  var ECL = { L: 0, M: 1, Q: 2, H: 3 };
+
+  function QRRSBlock(totalCount, dataCount) { this.totalCount = totalCount; this.dataCount = dataCount; }
+  QRRSBlock.getRSBlocks = function (typeNumber, ecLevel) {
+    var rsBlock = RS_BLOCK_TABLE[(typeNumber - 1) * 4 + ecLevel];
+    if (!rsBlock) throw new Error('bad rs block @ typeNumber:' + typeNumber + '/ecLevel:' + ecLevel);
+    var length = rsBlock.length / 3;
+    var list = [];
+    for (var i = 0; i < length; i++) {
+      var count = rsBlock[i * 3 + 0];
+      var totalCount = rsBlock[i * 3 + 1];
+      var dataCount = rsBlock[i * 3 + 2];
+      for (var j = 0; j < count; j++) list.push(new QRRSBlock(totalCount, dataCount));
+    }
+    return list;
+  };
+
+  // --- BitBuffer ---
+  function QRBitBuffer() { this.buffer = []; this.length = 0; }
+  QRBitBuffer.prototype = {
+    get: function (index) { return ((this.buffer[Math.floor(index / 8)] >>> (7 - index % 8)) & 1) === 1; },
+    put: function (num, length) { for (var i = 0; i < length; i++) this.putBit(((num >>> (length - i - 1)) & 1) === 1); },
+    getLengthInBits: function () { return this.length; },
+    putBit: function (bit) {
+      var bufIndex = Math.floor(this.length / 8);
+      if (this.buffer.length <= bufIndex) this.buffer.push(0);
+      if (bit) this.buffer[bufIndex] |= (0x80 >>> (this.length % 8));
+      this.length++;
+    }
+  };
+
+  // --- 8BitByte data ---
+  function QR8bitByte(data) {
+    this.mode = 4; this.data = data;
+    this.bytes = [];
+    // UTF-8 encode
+    for (var i = 0; i < data.length; i++) {
+      var c = data.charCodeAt(i);
+      if (c < 0x80) this.bytes.push(c);
+      else if (c < 0x800) { this.bytes.push(0xC0 | (c >> 6)); this.bytes.push(0x80 | (c & 0x3F)); }
+      else if (c < 0x10000) { this.bytes.push(0xE0 | (c >> 12)); this.bytes.push(0x80 | ((c >> 6) & 0x3F)); this.bytes.push(0x80 | (c & 0x3F)); }
+      else { this.bytes.push(0xF0 | (c >> 18)); this.bytes.push(0x80 | ((c >> 12) & 0x3F)); this.bytes.push(0x80 | ((c >> 6) & 0x3F)); this.bytes.push(0x80 | (c & 0x3F)); }
+    }
+  }
+  QR8bitByte.prototype = {
+    getLength: function () { return this.bytes.length; },
+    write: function (buffer) { for (var i = 0; i < this.bytes.length; i++) buffer.put(this.bytes[i], 8); }
+  };
+
+  // --- QRUtil ---
+  var QRUtil = {
+    PATTERN_POSITION_TABLE: [
+      [], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34],
+      [6, 22, 38], [6, 24, 42], [6, 26, 46], [6, 28, 50]
+    ],
+    G15: (1 << 10) | (1 << 8) | (1 << 5) | (1 << 4) | (1 << 2) | (1 << 1) | (1 << 0),
+    G18: (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) | (1 << 8) | (1 << 5) | (1 << 2) | (1 << 0),
+    G15_MASK: (1 << 14) | (1 << 12) | (1 << 10) | (1 << 4) | (1 << 1),
+    getBCHTypeInfo: function (data) {
+      var d = data << 10;
+      while (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G15) >= 0) d ^= (QRUtil.G15 << (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G15)));
+      return ((data << 10) | d) ^ QRUtil.G15_MASK;
+    },
+    getBCHTypeNumber: function (data) {
+      var d = data << 12;
+      while (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G18) >= 0) d ^= (QRUtil.G18 << (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G18)));
+      return (data << 12) | d;
+    },
+    getBCHDigit: function (data) { var digit = 0; while (data !== 0) { digit++; data >>>= 1; } return digit; },
+    getPatternPosition: function (typeNumber) { return QRUtil.PATTERN_POSITION_TABLE[typeNumber - 1]; },
+    getMask: function (maskPattern, i, j) {
+      switch (maskPattern) {
+        case 0: return (i + j) % 2 === 0;
+        case 1: return i % 2 === 0;
+        case 2: return j % 3 === 0;
+        case 3: return (i + j) % 3 === 0;
+        case 4: return (Math.floor(i / 2) + Math.floor(j / 3)) % 2 === 0;
+        case 5: return (i * j) % 2 + (i * j) % 3 === 0;
+        case 6: return ((i * j) % 2 + (i * j) % 3) % 2 === 0;
+        case 7: return ((i * j) % 3 + (i + j) % 2) % 2 === 0;
+        default: throw new Error('bad maskPattern:' + maskPattern);
+      }
+    },
+    getErrorCorrectPolynomial: function (errorCorrectLength) {
+      var a = new Polynomial([1], 0);
+      for (var i = 0; i < errorCorrectLength; i++) a = a.multiply(new Polynomial([1, QRMath.gexp(i)], 0));
+      return a;
+    },
+    getLostPoint: function (qrCode) {
+      var moduleCount = qrCode.getModuleCount();
+      var lostPoint = 0;
+      for (var row = 0; row < moduleCount; row++) {
+        for (var col = 0; col < moduleCount; col++) {
+          var sameCount = 0;
+          var dark = qrCode.isDark(row, col);
+          for (var r = -1; r <= 1; r++) {
+            if (row + r < 0 || moduleCount <= row + r) continue;
+            for (var c = -1; c <= 1; c++) {
+              if (col + c < 0 || moduleCount <= col + c) continue;
+              if (r === 0 && c === 0) continue;
+              if (dark === qrCode.isDark(row + r, col + c)) sameCount++;
+            }
+          }
+          if (sameCount > 5) lostPoint += (3 + sameCount - 5);
+        }
+      }
+      for (var row = 0; row < moduleCount - 1; row++) {
+        for (var col = 0; col < moduleCount - 1; col++) {
+          var count = 0;
+          if (qrCode.isDark(row, col)) count++;
+          if (qrCode.isDark(row + 1, col)) count++;
+          if (qrCode.isDark(row, col + 1)) count++;
+          if (qrCode.isDark(row + 1, col + 1)) count++;
+          if (count === 0 || count === 4) lostPoint += 3;
+        }
+      }
+      for (var row = 0; row < moduleCount; row++) {
+        for (var col = 0; col < moduleCount - 6; col++) {
+          if (qrCode.isDark(row, col) && !qrCode.isDark(row, col + 1) && qrCode.isDark(row, col + 2)
+              && qrCode.isDark(row, col + 3) && qrCode.isDark(row, col + 4) && !qrCode.isDark(row, col + 5)
+              && qrCode.isDark(row, col + 6)) lostPoint += 40;
+        }
+      }
+      for (var col = 0; col < moduleCount; col++) {
+        for (var row = 0; row < moduleCount - 6; row++) {
+          if (qrCode.isDark(row, col) && !qrCode.isDark(row + 1, col) && qrCode.isDark(row + 2, col)
+              && qrCode.isDark(row + 3, col) && qrCode.isDark(row + 4, col) && !qrCode.isDark(row + 5, col)
+              && qrCode.isDark(row + 6, col)) lostPoint += 40;
+        }
+      }
+      var darkCount = 0;
+      for (var col = 0; col < moduleCount; col++) {
+        for (var row = 0; row < moduleCount; row++) { if (qrCode.isDark(row, col)) darkCount++; }
+      }
+      var ratio = Math.abs(100 * darkCount / moduleCount / moduleCount - 50) / 5;
+      lostPoint += ratio * 10;
+      return lostPoint;
+    }
+  };
+
+  // --- QRCode core ---
+  function QRCodeModel(typeNumber, errorCorrectLevel) {
+    this.typeNumber = typeNumber;
+    this.errorCorrectLevel = errorCorrectLevel;
+    this.modules = null;
+    this.moduleCount = 0;
+    this.dataCache = null;
+    this.dataList = [];
+  }
+  QRCodeModel.prototype = {
+    addData: function (data) { this.dataList.push(new QR8bitByte(data)); this.dataCache = null; },
+    isDark: function (row, col) {
+      if (row < 0 || this.moduleCount <= row || col < 0 || this.moduleCount <= col) throw new Error(row + ',' + col);
+      return this.modules[row][col];
+    },
+    getModuleCount: function () { return this.moduleCount; },
+    make: function () { this.makeImpl(false, this.getBestMaskPattern()); },
+    makeImpl: function (test, maskPattern) {
+      this.moduleCount = this.typeNumber * 4 + 17;
+      this.modules = new Array(this.moduleCount);
+      for (var row = 0; row < this.moduleCount; row++) {
+        this.modules[row] = new Array(this.moduleCount);
+        for (var col = 0; col < this.moduleCount; col++) this.modules[row][col] = null;
+      }
+      this.setupPositionProbePattern(0, 0);
+      this.setupPositionProbePattern(this.moduleCount - 7, 0);
+      this.setupPositionProbePattern(0, this.moduleCount - 7);
+      this.setupPositionAdjustPattern();
+      this.setupTimingPattern();
+      this.setupTypeInfo(test, maskPattern);
+      if (this.typeNumber >= 7) this.setupTypeNumber(test);
+      if (this.dataCache == null) this.dataCache = QRCodeModel.createData(this.typeNumber, this.errorCorrectLevel, this.dataList);
+      this.mapData(this.dataCache, maskPattern);
+    },
+    setupPositionProbePattern: function (row, col) {
+      for (var r = -1; r <= 7; r++) {
+        if (row + r <= -1 || this.moduleCount <= row + r) continue;
+        for (var c = -1; c <= 7; c++) {
+          if (col + c <= -1 || this.moduleCount <= col + c) continue;
+          this.modules[row + r][col + c] = (0 <= r && r <= 6 && (c === 0 || c === 6))
+            || (0 <= c && c <= 6 && (r === 0 || r === 6))
+            || (2 <= r && r <= 4 && 2 <= c && c <= 4);
+        }
+      }
+    },
+    getBestMaskPattern: function () {
+      var minLostPoint = 0, pattern = 0;
+      for (var i = 0; i < 8; i++) {
+        this.makeImpl(true, i);
+        var lostPoint = QRUtil.getLostPoint(this);
+        if (i === 0 || minLostPoint > lostPoint) { minLostPoint = lostPoint; pattern = i; }
+      }
+      return pattern;
+    },
+    setupTimingPattern: function () {
+      for (var r = 8; r < this.moduleCount - 8; r++) if (this.modules[r][6] == null) this.modules[r][6] = (r % 2 === 0);
+      for (var c = 8; c < this.moduleCount - 8; c++) if (this.modules[6][c] == null) this.modules[6][c] = (c % 2 === 0);
+    },
+    setupPositionAdjustPattern: function () {
+      var pos = QRUtil.getPatternPosition(this.typeNumber);
+      for (var i = 0; i < pos.length; i++) for (var j = 0; j < pos.length; j++) {
+        var row = pos[i], col = pos[j];
+        if (this.modules[row][col] != null) continue;
+        for (var r = -2; r <= 2; r++) for (var c = -2; c <= 2; c++) {
+          this.modules[row + r][col + c] = (r === -2 || r === 2 || c === -2 || c === 2 || (r === 0 && c === 0));
+        }
+      }
+    },
+    setupTypeNumber: function (test) {
+      var bits = QRUtil.getBCHTypeNumber(this.typeNumber);
+      for (var i = 0; i < 18; i++) {
+        var mod = !test && ((bits >> i) & 1) === 1;
+        this.modules[Math.floor(i / 3)][i % 3 + this.moduleCount - 8 - 3] = mod;
+      }
+      for (var i = 0; i < 18; i++) {
+        var mod = !test && ((bits >> i) & 1) === 1;
+        this.modules[i % 3 + this.moduleCount - 8 - 3][Math.floor(i / 3)] = mod;
+      }
+    },
+    setupTypeInfo: function (test, maskPattern) {
+      var data = (this.errorCorrectLevel << 3) | maskPattern;
+      var bits = QRUtil.getBCHTypeInfo(data);
+      for (var i = 0; i < 15; i++) {
+        var mod = !test && ((bits >> i) & 1) === 1;
+        if (i < 6) this.modules[i][8] = mod;
+        else if (i < 8) this.modules[i + 1][8] = mod;
+        else this.modules[this.moduleCount - 15 + i][8] = mod;
+      }
+      for (var i = 0; i < 15; i++) {
+        var mod = !test && ((bits >> i) & 1) === 1;
+        if (i < 8) this.modules[8][this.moduleCount - i - 1] = mod;
+        else if (i < 9) this.modules[8][15 - i - 1 + 1] = mod;
+        else this.modules[8][15 - i - 1] = mod;
+      }
+      this.modules[this.moduleCount - 8][8] = !test;
+    },
+    mapData: function (data, maskPattern) {
+      var inc = -1, row = this.moduleCount - 1, bitIndex = 7, byteIndex = 0;
+      for (var col = this.moduleCount - 1; col > 0; col -= 2) {
+        if (col === 6) col--;
+        while (true) {
+          for (var c = 0; c < 2; c++) {
+            if (this.modules[row][col - c] == null) {
+              var dark = false;
+              if (byteIndex < data.length) dark = (((data[byteIndex] >>> bitIndex) & 1) === 1);
+              var mask = QRUtil.getMask(maskPattern, row, col - c);
+              if (mask) dark = !dark;
+              this.modules[row][col - c] = dark;
+              bitIndex--;
+              if (bitIndex === -1) { byteIndex++; bitIndex = 7; }
+            }
+          }
+          row += inc;
+          if (row < 0 || this.moduleCount <= row) { row -= inc; inc = -inc; break; }
+        }
+      }
+    }
+  };
+
+  QRCodeModel.PAD0 = 0xEC;
+  QRCodeModel.PAD1 = 0x11;
+  QRCodeModel.createData = function (typeNumber, errorCorrectLevel, dataList) {
+    var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, errorCorrectLevel);
+    var buffer = new QRBitBuffer();
+    for (var i = 0; i < dataList.length; i++) {
+      var data = dataList[i];
+      buffer.put(data.mode, 4);
+      buffer.put(data.getLength(), QRCodeModel.getLengthInBits(data.mode, typeNumber));
+      data.write(buffer);
+    }
+    var totalDataCount = 0;
+    for (var i = 0; i < rsBlocks.length; i++) totalDataCount += rsBlocks[i].dataCount;
+    if (buffer.getLengthInBits() > totalDataCount * 8) {
+      throw new Error('code length overflow. (' + buffer.getLengthInBits() + '>' + totalDataCount * 8 + ')');
+    }
+    if (buffer.getLengthInBits() + 4 <= totalDataCount * 8) buffer.put(0, 4);
+    while (buffer.getLengthInBits() % 8 !== 0) buffer.putBit(false);
+    while (true) {
+      if (buffer.getLengthInBits() >= totalDataCount * 8) break;
+      buffer.put(QRCodeModel.PAD0, 8);
+      if (buffer.getLengthInBits() >= totalDataCount * 8) break;
+      buffer.put(QRCodeModel.PAD1, 8);
+    }
+    return QRCodeModel.createBytes(buffer, rsBlocks);
+  };
+  QRCodeModel.createBytes = function (buffer, rsBlocks) {
+    var offset = 0, maxDcCount = 0, maxEcCount = 0;
+    var dcdata = new Array(rsBlocks.length);
+    var ecdata = new Array(rsBlocks.length);
+    for (var r = 0; r < rsBlocks.length; r++) {
+      var dcCount = rsBlocks[r].dataCount;
+      var ecCount = rsBlocks[r].totalCount - dcCount;
+      maxDcCount = Math.max(maxDcCount, dcCount);
+      maxEcCount = Math.max(maxEcCount, ecCount);
+      dcdata[r] = new Array(dcCount);
+      for (var i = 0; i < dcdata[r].length; i++) dcdata[r][i] = 0xff & buffer.buffer[i + offset];
+      offset += dcCount;
+      var rsPoly = QRUtil.getErrorCorrectPolynomial(ecCount);
+      var rawPoly = new Polynomial(dcdata[r], rsPoly.getLength() - 1);
+      var modPoly = rawPoly.mod(rsPoly);
+      ecdata[r] = new Array(rsPoly.getLength() - 1);
+      for (var i = 0; i < ecdata[r].length; i++) {
+        var modIndex = i + modPoly.getLength() - ecdata[r].length;
+        ecdata[r][i] = (modIndex >= 0) ? modPoly.get(modIndex) : 0;
+      }
+    }
+    var totalCodeCount = 0;
+    for (var i = 0; i < rsBlocks.length; i++) totalCodeCount += rsBlocks[i].totalCount;
+    var data = new Array(totalCodeCount);
+    var index = 0;
+    for (var i = 0; i < maxDcCount; i++) {
+      for (var r = 0; r < rsBlocks.length; r++) if (i < dcdata[r].length) data[index++] = dcdata[r][i];
+    }
+    for (var i = 0; i < maxEcCount; i++) {
+      for (var r = 0; r < rsBlocks.length; r++) if (i < ecdata[r].length) data[index++] = ecdata[r][i];
+    }
+    return data;
+  };
+  QRCodeModel.getLengthInBits = function (mode, type) {
+    if (type >= 1 && type < 10) { // byte mode 16 bits for type 10+
+      if (mode === 4) return 8;
+    } else if (type < 27) {
+      if (mode === 4) return 16;
+    } else if (type < 41) {
+      if (mode === 4) return 16;
+    }
+    throw new Error('mode:' + mode + '/type:' + type);
+  };
+
+  // Public API
+  function generate(text, ecLevel) {
+    ecLevel = (ecLevel == null) ? ECL.M : ecLevel;
+    // Find minimal version (1..10 supported here)
+    for (var typeNumber = 1; typeNumber <= 10; typeNumber++) {
+      try {
+        var qr = new QRCodeModel(typeNumber, ecLevel);
+        qr.addData(text);
+        qr.make();
+        return qr;
+      } catch (e) { /* try next version */ }
+    }
+    throw new Error('QR content too long for version<=10');
+  }
+  return {
+    create: function (text, level) {
+      var lv = ECL[level] != null ? ECL[level] : ECL.M;
+      return generate(text, lv);
+    }
+  };
+})();
+
+/* ================================================================
+   APP LOGIC
+   ================================================================ */
+
+/**
+ * =========================================================
+ * CONFIG: 全局配置层
+ * 所有品牌、主题、应用参数集中在这里维护。
+ * ★★★ 二维码替换位置：CONFIG.brand.qrcodeBase64 ★★★
+ * =========================================================
+ */
+const CONFIG = {
+  brand: {
+  companyName: "苏州机器视觉",
+  author: "老T",
+  officialAccount: "苏州机器视觉老T",
+  contact: "VX：br_vision",
+  slogan: "模块化 · 可扩展 · 工业级单文件 Web 工具",
+  logoText: "老T",
+  /*
+    二维码 base64 替换位置：
+    将下方占位内容替换为真实二维码即可。
+    示例：
+    qrcodeBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+  */
+  qrcodeBase64: "data:image/jpeg;base64,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",
+  copyright: "© 2026 Brant. All rights reserved."
+},
+  theme: {
+    primary: "#00d4ff",
+    secondary: "#0ea5e9",
+    accent: "#3b82f6",
+    background: "#0a0e27",
+    surface: "#1a1d35",
+    success: "#22c55e",
+    warning: "#f59e0b",
+    danger: "#ef4444"
+  },
+  app: {
+    name: "机器视觉标定板图像生成助手",
+    version: "1.0.0",
+    description: "支持棋盘格 / 圆点阵列 / 二维码棋盘的真实尺寸标定板生成与 PDF 导出"
+  },
+  paperSize: {
+    A4:     { w: 210, h: 297 },
+    A3:     { w: 297, h: 420 },
+    A2:     { w: 420, h: 594 },
+    Letter: { w: 216, h: 279 }
+  }
+};
+
+/**
+ * UtilsModule: 通用工具函数
+ */
+const UtilsModule = {
+  /** 单位转 mm */
+  toMm(value, unit) {
+    value = Number(value) || 0;
+    switch (unit) {
+      case "mm":   return value;
+      case "cm":   return value * 10;
+      case "inch": return value * 25.4;
+      default:     return value;
+    }
+  },
+  /** mm 转 px (以 96 DPI 作为屏幕基准换算；SVG viewBox 单位为 mm) */
+  mmToPx(mm) { return mm * 96 / 25.4; },
+  /** 防抖 */
+  debounce(fn, wait) {
+    let t = null;
+    return function () {
+      clearTimeout(t);
+      const args = arguments, ctx = this;
+      t = setTimeout(() => fn.apply(ctx, args), wait);
+    };
+  },
+  /** 数字格式化 */
+  fmt(n, digits = 2) {
+    if (!isFinite(n)) return "--";
+    return Number(n).toFixed(digits);
+  },
+  /** 下载 Blob */
+  downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 200);
+  },
+  /** LocalStorage */
+  storageGet(key, fallback) {
+    try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+    catch (e) { return fallback; }
+  },
+  storageSet(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+  },
+  /** HTML 转义 */
+  escape(str) {
+    return String(str).replace(/[&<>"']/g, s => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[s]));
+  }
+};
+
+/**
+ * BrandModule: 品牌信息渲染
+ * 所有品牌信息必须从 CONFIG.brand 读取，禁止在 DOM 中硬编码。
+ */
+const BrandModule = {
+  render() {
+    const b = CONFIG.brand;
+    document.querySelectorAll("[data-brand='companyName']").forEach(el => el.textContent = b.companyName);
+    document.querySelectorAll("[data-brand='author']").forEach(el => el.textContent = b.author);
+    document.querySelectorAll("[data-brand='officialAccount']").forEach(el => el.textContent = b.officialAccount);
+    document.querySelectorAll("[data-brand='contact']").forEach(el => el.textContent = b.contact);
+    document.querySelectorAll("[data-brand='slogan']").forEach(el => el.textContent = b.slogan);
+    document.querySelectorAll("[data-brand='logoText']").forEach(el => el.textContent = b.logoText);
+    document.querySelectorAll("[data-brand='copyright']").forEach(el => el.textContent = b.copyright);
+    document.querySelectorAll("[data-brand='qrcode']").forEach(el => { el.src = b.qrcodeBase64; });
+    document.title = CONFIG.app.name;
+    const v = document.getElementById("appVersion");
+    if (v) v.textContent = CONFIG.app.version;
+  }
+};
+
+/**
+ * UIModule: 界面交互
+ */
+const UIModule = {
+  state: {
+    type: "checker",     // checker | dots | checkerQR
+    zoom: 1,
+    lastParams: null
+  },
+  cache: {},
+
+  cacheDom() {
+    const ids = [
+      "tabGroup", "inpUnit", "inpCols", "inpRows",
+      "inpCellW", "inpCellH", "inpSquareLock",
+      "inpDotD", "inpSpacingX", "inpSpacingY", "inpDotPattern",
+      "inpMarginX", "inpMarginY",
+      "inpFg", "inpBg", "inpShowBorder", "inpShowRuler", "inpShowLabel",
+      "inpQrEnabled", "inpQrLayout", "inpQrInterval", "inpQrSize",
+      "inpQrFormat", "inpQrEc", "inpQrShowCoord",
+      "inpPaper", "inpOrientation", "inpPaperW", "inpPaperH",
+      "groupChecker", "groupDots", "groupCustomPaper", "sectionQR",
+      "svgWrapper", "previewCanvas", "zoomLabel",
+      "infoBodyW", "infoBodyH", "infoTotalW", "infoTotalH",
+      "infoPaper", "infoFit",
+      "btnZoomIn", "btnZoomOut", "btnZoomFit", "btnZoomReal",
+      "btnExportSVG", "btnExportPNG", "btnExportPDF",
+      "btnPrint", "btnImport", "btnExportJSON",
+      "fileInput", "toastContainer", "printArea"
+    ];
+    ids.forEach(id => this.cache[id] = document.getElementById(id));
+  },
+
+  bind() {
+    const c = this.cache;
+    const update = UtilsModule.debounce(() => CoreModule.generate(), 60);
+
+    // Tab 切换
+    c.tabGroup.addEventListener("click", (e) => {
+      const tab = e.target.closest(".tab");
+      if (!tab) return;
+      c.tabGroup.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      this.state.type = tab.dataset.type;
+      this.syncTypeGroups();
+      update();
+    });
+
+    // 所有输入监听
+    const allInputs = document.querySelectorAll(".panel input, .panel select");
+    allInputs.forEach(el => {
+      el.addEventListener("input", () => {
+        // 正方形锁定
+        if (el === c.inpCellW && c.inpSquareLock.checked) c.inpCellH.value = c.inpCellW.value;
+        if (el === c.inpCellH && c.inpSquareLock.checked) c.inpCellW.value = c.inpCellH.value;
+        // 自定义纸张显示
+        if (el === c.inpPaper) {
+          c.groupCustomPaper.style.display = el.value === "custom" ? "" : "none";
+        }
+        update();
+      });
+      el.addEventListener("change", update);
+    });
+
+    // 缩放控制
+    c.btnZoomIn.addEventListener("click", () => this.zoom(this.state.zoom * 1.2));
+    c.btnZoomOut.addEventListener("click", () => this.zoom(this.state.zoom / 1.2));
+    c.btnZoomReal.addEventListener("click", () => this.zoom(1));
+    c.btnZoomFit.addEventListener("click", () => this.zoomFit());
+
+    // 导出按钮
+    c.btnExportSVG.addEventListener("click", () => CoreModule.exportSVG());
+    c.btnExportPNG.addEventListener("click", () => CoreModule.exportPNG());
+    c.btnExportPDF.addEventListener("click", () => CoreModule.exportPDF());
+    c.btnPrint.addEventListener("click", () => CoreModule.exportPDF());
+    c.btnExportJSON.addEventListener("click", () => CoreModule.exportConfigJSON());
+    c.btnImport.addEventListener("click", () => c.fileInput.click());
+    c.fileInput.addEventListener("change", (e) => CoreModule.importConfigJSON(e.target.files[0]));
+
+    // 键盘快捷键
+    window.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "p") {
+        e.preventDefault();
+        CoreModule.exportPDF();
+      }
+    });
+
+    // 初始化分组显示
+    this.syncTypeGroups();
+  },
+
+  syncTypeGroups() {
+    const t = this.state.type;
+    this.cache.groupChecker.style.display = (t === "checker" || t === "checkerQR") ? "" : "none";
+    this.cache.groupDots.style.display    = (t === "dots") ? "" : "none";
+    this.cache.sectionQR.style.display    = (t === "checkerQR") ? "" : "none";
+    // 自动启用二维码
+    if (t === "checkerQR" && !this.cache.inpQrEnabled.checked) {
+      this.cache.inpQrEnabled.checked = true;
+    }
+    if (t !== "checkerQR") {
+      this.cache.inpQrEnabled.checked = false;
+    }
+  },
+
+  zoom(v) {
+    v = Math.max(0.1, Math.min(8, v));
+    this.state.zoom = v;
+    this.cache.svgWrapper.style.transform = `scale(${v})`;
+    this.cache.zoomLabel.textContent = Math.round(v * 100) + "%";
+  },
+
+  zoomFit() {
+    const svg = this.cache.svgWrapper.firstElementChild;
+    if (!svg) return;
+    const canvas = this.cache.previewCanvas;
+    const pad = 40;
+    const availW = canvas.clientWidth - pad;
+    const availH = canvas.clientHeight - pad;
+    const w = svg.getBoundingClientRect().width / this.state.zoom;
+    const h = svg.getBoundingClientRect().height / this.state.zoom;
+    if (w <= 0 || h <= 0) return;
+    const fit = Math.min(availW / w, availH / h);
+    this.zoom(fit);
+  },
+
+  updateInfo(info) {
+    const c = this.cache;
+    c.infoBodyW.textContent  = UtilsModule.fmt(info.bodyW) + " mm";
+    c.infoBodyH.textContent  = UtilsModule.fmt(info.bodyH) + " mm";
+    c.infoTotalW.textContent = UtilsModule.fmt(info.totalW) + " mm";
+    c.infoTotalH.textContent = UtilsModule.fmt(info.totalH) + " mm";
+    c.infoPaper.textContent  = info.paperLabel;
+
+    c.infoFit.classList.remove("success", "warning", "danger");
+    if (info.fitStatus === "ok") {
+      c.infoFit.classList.add("success");
+      c.infoFit.textContent = "适合所选纸张";
+    } else if (info.fitStatus === "warn") {
+      c.infoFit.classList.add("warning");
+      c.infoFit.textContent = "接近纸张边界";
+    } else {
+      c.infoFit.classList.add("danger");
+      c.infoFit.textContent = "超出纸张范围";
+    }
+  },
+
+  toast(msg, type = "info", ms = 2600) {
+    const t = document.createElement("div");
+    t.className = "toast " + type;
+    t.textContent = msg;
+    this.cache.toastContainer.appendChild(t);
+    setTimeout(() => {
+      t.style.transition = "opacity .3s, transform .3s";
+      t.style.opacity = "0";
+      t.style.transform = "translateX(20px)";
+      setTimeout(() => t.remove(), 320);
+    }, ms);
+  }
+};
+
+/**
+ * CoreModule: 核心业务 — 生成 SVG / 导出
+ */
+const CoreModule = {
+  /** 收集当前输入参数（统一转为 mm）*/
+  collectParams() {
+    const c = UIModule.cache;
+    const unit = c.inpUnit.value;
+    const mm = v => UtilsModule.toMm(v, unit);
+
+    let paperSize;
+    if (c.inpPaper.value === "custom") {
+      paperSize = { w: Number(c.inpPaperW.value) || 210, h: Number(c.inpPaperH.value) || 297 };
+    } else {
+      paperSize = { ...CONFIG.paperSize[c.inpPaper.value] };
+    }
+
+    return {
+      type: UIModule.state.type,
+      unit,
+      cols: Math.max(2, parseInt(c.inpCols.value) || 2),
+      rows: Math.max(2, parseInt(c.inpRows.value) || 2),
+      cellW: mm(c.inpCellW.value),
+      cellH: mm(c.inpCellH.value),
+      dotD: mm(c.inpDotD.value),
+      spacingX: mm(c.inpSpacingX.value),
+      spacingY: mm(c.inpSpacingY.value),
+      dotPattern: c.inpDotPattern.value,
+      marginX: mm(c.inpMarginX.value),
+      marginY: mm(c.inpMarginY.value),
+      fg: c.inpFg.value,
+      bg: c.inpBg.value,
+      showBorder: c.inpShowBorder.checked,
+      showRuler: c.inpShowRuler.checked,
+      showLabel: c.inpShowLabel.checked,
+      qrEnabled: c.inpQrEnabled.checked,
+      qrLayout: c.inpQrLayout.value,
+      qrInterval: Math.max(1, parseInt(c.inpQrInterval.value) || 3),
+      qrSize: Math.max(1, parseInt(c.inpQrSize.value) || 2),
+      qrFormat: c.inpQrFormat.value,
+      qrEc: c.inpQrEc.value,
+      qrShowCoord: c.inpQrShowCoord.checked,
+      paperName: c.inpPaper.value,
+      paperSize,
+      orientation: c.inpOrientation.value
+    };
+  },
+
+  /** 校验参数 */
+  validate(p) {
+    if (p.cols < 2 || p.rows < 2) return "行数和列数必须不小于 2";
+    if (p.type === "dots") {
+      if (p.dotD <= 0) return "圆点直径必须大于 0";
+      if (p.spacingX <= p.dotD || p.spacingY <= p.dotD)
+        return "圆点中心距必须大于圆点直径，否则圆点会重叠";
+    } else {
+      if (p.cellW <= 0 || p.cellH <= 0) return "单格尺寸必须大于 0";
+    }
+    if (p.marginX < 0 || p.marginY < 0) return "边距不能为负数";
+    return null;
+  },
+
+  /** 计算主体尺寸 */
+  computeSize(p) {
+    let bodyW, bodyH;
+    if (p.type === "dots") {
+      if (p.dotPattern === "staggered") {
+        bodyW = (p.cols - 1) * p.spacingX + p.dotD + p.spacingX / 2;
+      } else if (p.dotPattern === "asymmetric") {
+        bodyW = (p.cols - 1) * p.spacingX + p.dotD + p.spacingX / 2;
+      } else {
+        bodyW = (p.cols - 1) * p.spacingX + p.dotD;
+      }
+      bodyH = (p.rows - 1) * p.spacingY + p.dotD;
+    } else {
+      bodyW = p.cols * p.cellW;
+      bodyH = p.rows * p.cellH;
+    }
+    const totalW = bodyW + p.marginX * 2;
+    const totalH = bodyH + p.marginY * 2;
+    return { bodyW, bodyH, totalW, totalH };
+  },
+
+  /** 决定纸张方向 */
+  resolvePaper(p, totalW, totalH) {
+    let { w, h } = p.paperSize;
+    let orient = p.orientation;
+    if (orient === "auto") {
+      orient = (totalW > totalH) ? "landscape" : "portrait";
+    }
+    if (orient === "landscape" && w < h) [w, h] = [h, w];
+    if (orient === "portrait"  && w > h) [w, h] = [h, w];
+    return { w, h, orient };
+  },
+
+  /** 判断适配状态 */
+  fitStatus(totalW, totalH, paperW, paperH) {
+    const tolerance = 4; // mm
+    if (totalW > paperW || totalH > paperH) return "over";
+    if (totalW > paperW - tolerance || totalH > paperH - tolerance) return "warn";
+    return "ok";
+  },
+
+  /** 生成二维码内容字符串 */
+  qrContent(col, row, p) {
+    switch (p.qrFormat) {
+      case "dash":       return `CB-${col}-${row}`;
+      case "industrial": return `BOARD=CALIB001;TYPE=CHECKER;X=${col};Y=${row};UNIT=${p.unit.toUpperCase()}`;
+      case "json":       return JSON.stringify({ type: "checkerboard", x: col, y: row, unit: p.unit });
+      case "simple":
+      default:           return `X=${col},Y=${row}`;
+    }
+  },
+
+  /** 计算二维码放置位置列表（左上角棋盘格坐标）*/
+  qrPositions(p) {
+    const positions = [];
+    const size = p.qrSize;
+    const maxC = p.cols - size;
+    const maxR = p.rows - size;
+    if (maxC < 0 || maxR < 0) return positions;
+
+    switch (p.qrLayout) {
+      case "corners":
+        positions.push([0, 0]);
+        positions.push([maxC, 0]);
+        positions.push([0, maxR]);
+        positions.push([maxC, maxR]);
+        break;
+      case "edges": {
+        const step = Math.max(size + 1, Math.floor(p.cols / 4));
+        for (let x = 0; x <= maxC; x += step) {
+          positions.push([x, 0]);
+          positions.push([x, maxR]);
+        }
+        const stepY = Math.max(size + 1, Math.floor(p.rows / 4));
+        for (let y = stepY; y < maxR; y += stepY) {
+          positions.push([0, y]);
+          positions.push([maxC, y]);
+        }
+        break;
+      }
+      case "interval": {
+        const iv = Math.max(size, p.qrInterval);
+        for (let y = 0; y <= maxR; y += iv) {
+          for (let x = 0; x <= maxC; x += iv) {
+            positions.push([x, y]);
+          }
+        }
+        break;
+      }
+      case "all": {
+        // 只放在白色格上（左上为黑，白格条件：(r+c)%2===1）
+        for (let y = 0; y <= maxR; y++) {
+          for (let x = 0; x <= maxC; x++) {
+            if (size === 1 && (x + y) % 2 !== 1) continue;
+            positions.push([x, y]);
+          }
+        }
+        break;
+      }
+    }
+
+    // 去重
+    const seen = new Set();
+    return positions.filter(([x, y]) => {
+      const k = x + "," + y;
+      if (seen.has(k)) return false;
+      seen.add(k); return true;
+    });
+  },
+
+  /** 生成 QR 的 SVG 片段（方格形式）
+   *  返回 { svgMarkup, modules } */
+  qrSvg(text, sizeMm, level, fg, bg, xOffset, yOffset) {
+    try {
+      const qr = QRCodeLib.create(text, level);
+      const n = qr.getModuleCount();
+      const mod = sizeMm / n;
+      // 白底
+      let s = `<rect x="${xOffset}" y="${yOffset}" width="${sizeMm}" height="${sizeMm}" fill="${bg}"/>`;
+      // 用 path 合并所有黑色模块，减少节点数
+      let d = "";
+      for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) {
+          if (qr.isDark(r, c)) {
+            const x = xOffset + c * mod;
+            const y = yOffset + r * mod;
+            d += `M${x.toFixed(4)},${y.toFixed(4)}h${mod.toFixed(4)}v${mod.toFixed(4)}h-${mod.toFixed(4)}z`;
+          }
+        }
+      }
+      s += `<path d="${d}" fill="${fg}" shape-rendering="crispEdges"/>`;
+      return s;
+    } catch (e) {
+      // 失败：绘制占位
+      return `<rect x="${xOffset}" y="${yOffset}" width="${sizeMm}" height="${sizeMm}" fill="#f00" opacity="0.3"/>`;
+    }
+  },
+
+  /** 核心：生成 SVG 字符串 */
+  buildSVG(p) {
+    const { bodyW, bodyH, totalW, totalH } = this.computeSize(p);
+    const svgW = totalW + (p.showRuler ? 12 : 0) + (p.showLabel ? 14 : 0);
+    const svgH = totalH + (p.showRuler ? 12 : 0) + (p.showLabel ? 14 : 0);
+
+    // viewBox 单位采用 mm，width/height 显式带 mm 单位确保真实尺寸
+    let svg = `<svg xmlns="http://www.w3.org/2000/svg" `
+            + `width="${svgW}mm" height="${svgH}mm" `
+            + `viewBox="0 0 ${svgW} ${svgH}" `
+            + `shape-rendering="crispEdges">`;
+
+    // 背景（仅图案区域）
+    svg += `<rect x="0" y="0" width="${totalW}" height="${totalH}" fill="${p.bg}"/>`;
+
+    // ==== 图案 ====
+    if (p.type === "dots") {
+      svg += this.buildDots(p, bodyW, bodyH);
+    } else {
+      svg += this.buildCheckerboard(p, bodyW, bodyH);
+    }
+
+    // 外边框
+    if (p.showBorder) {
+      svg += `<rect x="0.1" y="0.1" width="${totalW - 0.2}" height="${totalH - 0.2}" `
+          + `fill="none" stroke="${p.fg}" stroke-width="0.2"/>`;
+    }
+
+    // 尺寸标注
+    if (p.showLabel) {
+      const txt = p.type === "dots"
+        ? `${p.cols}×${p.rows}  Ø${UtilsModule.fmt(p.dotD, 2)}mm  间距${UtilsModule.fmt(p.spacingX, 2)}×${UtilsModule.fmt(p.spacingY, 2)}mm  总: ${UtilsModule.fmt(totalW, 1)}×${UtilsModule.fmt(totalH, 1)}mm`
+        : `${p.cols}×${p.rows}  格子${UtilsModule.fmt(p.cellW, 2)}×${UtilsModule.fmt(p.cellH, 2)}mm  总: ${UtilsModule.fmt(totalW, 1)}×${UtilsModule.fmt(totalH, 1)}mm`;
+      svg += `<text x="${totalW / 2}" y="${totalH + 5}" text-anchor="middle" `
+          + `font-family="Arial, sans-serif" font-size="3" fill="#333">${UtilsModule.escape(txt)}</text>`;
+      svg += `<text x="${totalW / 2}" y="${totalH + 9}" text-anchor="middle" `
+          + `font-family="Arial, sans-serif" font-size="2.5" fill="#888">${UtilsModule.escape(CONFIG.brand.companyName)} · ${UtilsModule.escape(CONFIG.app.name)} v${CONFIG.app.version}</text>`;
+    }
+
+    // 打印校准尺
+    if (p.showRuler) {
+      svg += this.buildRuler(totalW, totalH, p.showLabel ? 12 : 2);
+    }
+
+    svg += `</svg>`;
+    return { svg, totalW, totalH, bodyW, bodyH };
+  },
+
+  /** 圆点阵列绘制 */
+  buildDots(p, bodyW, bodyH) {
+    const r = p.dotD / 2;
+    let s = "";
+    const offsetX = p.marginX;
+    const offsetY = p.marginY;
+
+    if (p.dotPattern === "asymmetric") {
+      // 非对称：每隔一行偏移半格，且偏移行圆点数量相同
+      for (let row = 0; row < p.rows; row++) {
+        const offset = (row % 2) * (p.spacingX / 2);
+        for (let col = 0; col < p.cols; col++) {
+          const cx = offsetX + r + offset + col * p.spacingX;
+          const cy = offsetY + r + row * p.spacingY;
+          s += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${p.fg}"/>`;
+        }
+      }
+    } else if (p.dotPattern === "staggered") {
+      for (let row = 0; row < p.rows; row++) {
+        const offset = (row % 2) * (p.spacingX / 2);
+        for (let col = 0; col < p.cols; col++) {
+          const cx = offsetX + r + offset + col * p.spacingX;
+          const cy = offsetY + r + row * p.spacingY;
+          s += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${p.fg}"/>`;
+        }
+      }
+    } else {
+      for (let row = 0; row < p.rows; row++) {
+        for (let col = 0; col < p.cols; col++) {
+          const cx = offsetX + r + col * p.spacingX;
+          const cy = offsetY + r + row * p.spacingY;
+          s += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${p.fg}"/>`;
+        }
+      }
+    }
+    return s;
+  },
+
+  /** 棋盘格绘制 + 可选二维码 */
+  buildCheckerboard(p, bodyW, bodyH) {
+    let s = "";
+    const ox = p.marginX, oy = p.marginY;
+
+    // 黑格
+    for (let r = 0; r < p.rows; r++) {
+      for (let c = 0; c < p.cols; c++) {
+        if ((r + c) % 2 === 0) {
+          const x = ox + c * p.cellW;
+          const y = oy + r * p.cellH;
+          s += `<rect x="${x}" y="${y}" width="${p.cellW}" height="${p.cellH}" fill="${p.fg}"/>`;
+        }
+      }
+    }
+
+    // 二维码
+    if (p.type === "checkerQR" && p.qrEnabled) {
+      const positions = this.qrPositions(p);
+      const qrPaddingRatio = 0.08; // 8% 留白
+      for (const [col, row] of positions) {
+        const cellAvailW = p.cellW * p.qrSize;
+        const cellAvailH = p.cellH * p.qrSize;
+        const side = Math.min(cellAvailW, cellAvailH);
+        const pad  = side * qrPaddingRatio;
+        const qrSideMm = side - pad * 2;
+        const x0 = ox + col * p.cellW + (cellAvailW - qrSideMm) / 2;
+        const y0 = oy + row * p.cellH + (cellAvailH - qrSideMm) / 2;
+
+        // 覆盖白底（盖住原棋盘格内容）
+        s += `<rect x="${ox + col * p.cellW}" y="${oy + row * p.cellH}" `
+           + `width="${cellAvailW}" height="${cellAvailH}" fill="${p.bg}"/>`;
+
+        // 二维码内容
+        const content = this.qrContent(col, row, p);
+        s += this.qrSvg(content, qrSideMm, p.qrEc, p.fg, p.bg, x0, y0);
+
+        // 坐标文字
+        if (p.qrShowCoord) {
+          const label = `(${col},${row})`;
+          s += `<text x="${x0 + qrSideMm / 2}" y="${y0 + qrSideMm + 2.2}" `
+             + `text-anchor="middle" font-family="Arial" font-size="2" fill="#444">${label}</text>`;
+        }
+      }
+    }
+    return s;
+  },
+
+  /** 打印校准尺（10mm 与 1mm 刻度）*/
+  buildRuler(totalW, totalH, yOffset) {
+    const y = totalH + yOffset - 8;
+    let s = `<g font-family="Arial" font-size="2" fill="#333">`;
+    // 底线
+    s += `<line x1="0" y1="${y}" x2="100" y2="${y}" stroke="#333" stroke-width="0.2"/>`;
+    for (let i = 0; i <= 100; i++) {
+      let h;
+      if (i % 10 === 0) h = 3;
+      else if (i % 5 === 0) h = 2;
+      else h = 1;
+      s += `<line x1="${i}" y1="${y}" x2="${i}" y2="${y - h}" stroke="#333" stroke-width="0.15"/>`;
+      if (i % 10 === 0) {
+        s += `<text x="${i}" y="${y - 4}" text-anchor="middle">${i}</text>`;
+      }
+    }
+    s += `<text x="52" y="${y + 3}" fill="#888" font-size="1.8">100mm 校准尺 · 打印后请使用标尺测量验证</text>`;
+    s += `</g>`;
+    return s;
+  },
+
+  /** 主入口：生成并渲染 */
+  generate() {
+    const params = this.collectParams();
+    const err = this.validate(params);
+    if (err) {
+      UIModule.toast(err, "error");
+      return;
+    }
+
+    try {
+      const { svg, totalW, totalH, bodyW, bodyH } = this.buildSVG(params);
+      UIModule.cache.svgWrapper.innerHTML = svg;
+
+      // 纸张适配判断
+      const paper = this.resolvePaper(params, totalW, totalH);
+      const fit = this.fitStatus(totalW, totalH, paper.w, paper.h);
+      const paperLabel = params.paperName === "custom"
+        ? `自定义 ${paper.w}×${paper.h}`
+        : `${params.paperName} ${paper.orient === "landscape" ? "横向" : "纵向"}`;
+
+      UIModule.updateInfo({ bodyW, bodyH, totalW, totalH, paperLabel, fitStatus: fit });
+
+      // 缓存参数用于导出
+      UIModule.state.lastParams = { params, svgW: totalW, svgH: totalH, paper };
+
+      // 保存到 localStorage
+      UtilsModule.storageSet("calib_last_config", this.serialize(params));
+    } catch (e) {
+      console.error(e);
+      UIModule.toast("生成失败：" + (e.message || e), "error");
+    }
+  },
+
+  serialize(p) {
+    return {
+      type: p.type, unit: p.unit, cols: p.cols, rows: p.rows,
+      cellW: p.cellW, cellH: p.cellH,
+      dotD: p.dotD, spacingX: p.spacingX, spacingY: p.spacingY,
+      dotPattern: p.dotPattern,
+      marginX: p.marginX, marginY: p.marginY,
+      fg: p.fg, bg: p.bg,
+      showBorder: p.showBorder, showRuler: p.showRuler, showLabel: p.showLabel,
+      qrEnabled: p.qrEnabled, qrLayout: p.qrLayout,
+      qrInterval: p.qrInterval, qrSize: p.qrSize,
+      qrFormat: p.qrFormat, qrEc: p.qrEc, qrShowCoord: p.qrShowCoord,
+      paperName: p.paperName, orientation: p.orientation
+    };
+  },
+
+  /** ========== 导出 ========== */
+  getSvgString() {
+    const wrap = UIModule.cache.svgWrapper;
+    const svgEl = wrap.querySelector("svg");
+    if (!svgEl) return null;
+    return new XMLSerializer().serializeToString(svgEl);
+  },
+
+  buildFilename(ext) {
+    const p = UIModule.state.lastParams?.params;
+    if (!p) return "calibration." + ext;
+    if (p.type === "dots") {
+      return `calibration_dots_${p.cols}x${p.rows}_d${UtilsModule.fmt(p.dotD, 1)}_s${UtilsModule.fmt(p.spacingX, 1)}mm.${ext}`;
+    }
+    if (p.type === "checkerQR") {
+      return `calibration_checker_qr_${p.cols}x${p.rows}_${UtilsModule.fmt(p.cellW, 1)}mm.${ext}`;
+    }
+    return `calibration_checker_${p.cols}x${p.rows}_${UtilsModule.fmt(p.cellW, 1)}mm.${ext}`;
+  },
+
+  exportSVG() {
+    const svgStr = this.getSvgString();
+    if (!svgStr) return UIModule.toast("暂无可导出的图像", "error");
+    const blob = new Blob([`<?xml version="1.0" encoding="UTF-8"?>\n` + svgStr], { type: "image/svg+xml" });
+    UtilsModule.downloadBlob(blob, this.buildFilename("svg"));
+    UIModule.toast("SVG 已导出", "success");
+  },
+
+  exportPNG() {
+    const svgStr = this.getSvgString();
+    if (!svgStr) return UIModule.toast("暂无可导出的图像", "error");
+    const { svgW, svgH } = UIModule.state.lastParams
+      ? { svgW: UIModule.state.lastParams.svgW, svgH: UIModule.state.lastParams.svgH }
+      : { svgW: 200, svgH: 200 };
+    const dpi = 300;
+    const widthPx  = Math.round(svgW * dpi / 25.4);
+    const heightPx = Math.round(svgH * dpi / 25.4);
+
+    const img = new Image();
+    const blob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = widthPx; canvas.height = heightPx;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, widthPx, heightPx);
+        canvas.toBlob(b => {
+          if (!b) return UIModule.toast("PNG 生成失败", "error");
+          UtilsModule.downloadBlob(b, this.buildFilename("png"));
+          UIModule.toast("PNG 已导出 (300 DPI)", "success");
+        }, "image/png");
+      } catch (e) {
+        UIModule.toast("PNG 导出失败：" + e.message, "error");
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); UIModule.toast("PNG 导出失败", "error"); };
+    img.src = url;
+  },
+
+  /** PDF 导出：使用 window.print + 打印样式实现 1:1 尺寸 */
+  exportPDF() {
+    const svgStr = this.getSvgString();
+    if (!svgStr) return UIModule.toast("暂无可导出的图像", "error");
+    const last = UIModule.state.lastParams;
+    if (!last) return;
+
+    // 写入专用打印区域（mm 单位）
+    const pa = UIModule.cache.printArea;
+    pa.innerHTML = `
+      <div style="width:${last.paper.w}mm; height:${last.paper.h}mm; display:flex; align-items:center; justify-content:center; page-break-after:avoid;">
+        ${svgStr}
+      </div>
+    `;
+    pa.style.display = "block";
+
+    // 设置 @page 大小
+    const existing = document.getElementById("dynamicPageStyle");
+    if (existing) existing.remove();
+    const style = document.createElement("style");
+    style.id = "dynamicPageStyle";
+    style.textContent = `
+      @media print {
+        @page { size: ${last.paper.w}mm ${last.paper.h}mm; margin: 0; }
+        html, body { width: ${last.paper.w}mm; height: ${last.paper.h}mm; }
+      }
+    `;
+    document.head.appendChild(style);
+
+    UIModule.toast("打印对话框已打开：请选择“另存为 PDF”，并关闭自动缩放", "info", 4200);
+
+    setTimeout(() => {
+      window.print();
+      // 打印完成后恢复
+      setTimeout(() => { pa.style.display = "none"; pa.innerHTML = ""; }, 500);
+    }, 200);
+  },
+
+  exportConfigJSON() {
+    const p = UIModule.state.lastParams?.params;
+    if (!p) return UIModule.toast("暂无可导出的配置", "error");
+    const data = this.serialize(p);
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    UtilsModule.downloadBlob(blob, "calibration_config.json");
+    UIModule.toast("配置已导出", "success");
+  },
+
+  importConfigJSON(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        this.applyConfig(data);
+        UIModule.toast("配置已导入", "success");
+      } catch (err) {
+        UIModule.toast("导入失败：JSON 格式错误", "error");
+      }
+    };
+    reader.onerror = () => UIModule.toast("文件读取失败", "error");
+    reader.readAsText(file);
+    UIModule.cache.fileInput.value = "";
+  },
+
+  applyConfig(d) {
+    const c = UIModule.cache;
+    const set = (el, v) => { if (v != null) el.value = v; };
+    const setCk = (el, v) => { if (v != null) el.checked = !!v; };
+
+    // 切换类型
+    if (d.type) {
+      c.tabGroup.querySelectorAll(".tab").forEach(t => {
+        t.classList.toggle("active", t.dataset.type === d.type);
+      });
+      UIModule.state.type = d.type;
+    }
+    // 注意：导入时单位为 mm 基准，直接以 mm 填值并切到 mm
+    set(c.inpUnit, "mm");
+    set(c.inpCols, d.cols); set(c.inpRows, d.rows);
+    set(c.inpCellW, d.cellW); set(c.inpCellH, d.cellH);
+    set(c.inpDotD, d.dotD);
+    set(c.inpSpacingX, d.spacingX); set(c.inpSpacingY, d.spacingY);
+    set(c.inpDotPattern, d.dotPattern);
+    set(c.inpMarginX, d.marginX); set(c.inpMarginY, d.marginY);
+    set(c.inpFg, d.fg); set(c.inpBg, d.bg);
+    setCk(c.inpShowBorder, d.showBorder);
+    setCk(c.inpShowRuler, d.showRuler);
+    setCk(c.inpShowLabel, d.showLabel);
+    setCk(c.inpQrEnabled, d.qrEnabled);
+    set(c.inpQrLayout, d.qrLayout);
+    set(c.inpQrInterval, d.qrInterval);
+    set(c.inpQrSize, d.qrSize);
+    set(c.inpQrFormat, d.qrFormat);
+    set(c.inpQrEc, d.qrEc);
+    setCk(c.inpQrShowCoord, d.qrShowCoord);
+    set(c.inpPaper, d.paperName);
+    set(c.inpOrientation, d.orientation);
+    c.groupCustomPaper.style.display = (d.paperName === "custom") ? "" : "none";
+
+    UIModule.syncTypeGroups();
+    CoreModule.generate();
+  }
+};
+
+/**
+ * App: 应用初始化入口
+ */
+const App = {
+  init() {
+    try {
+      BrandModule.render();
+      UIModule.cacheDom();
+      UIModule.bind();
+
+      // 恢复上次配置
+      const last = UtilsModule.storageGet("calib_last_config", null);
+      if (last) {
+        try { CoreModule.applyConfig(last); }
+        catch (e) { CoreModule.generate(); }
+      } else {
+        CoreModule.generate();
+      }
+
+      // 监听窗口改变，重新适配
+      window.addEventListener("resize", UtilsModule.debounce(() => {
+        // 缩放保持不变
+      }, 200));
+
+      // 全局错误捕获
+      window.addEventListener("error", (e) => {
+        console.error(e);
+      });
+    } catch (e) {
+      console.error(e);
+      alert("初始化失败：" + (e.message || e));
+    }
+  }
+};
+
+document.addEventListener("DOMContentLoaded", App.init);
+</script>
+</body>
+</html>
